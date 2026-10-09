@@ -3,5 +3,10 @@ import { MochiClient } from "@/app/mochi/mochi-client";
 
 export default function MochiPage() {
   const config = getReadmeConfig();
-  return <MochiClient homepageName={config.homepageName} />;
+  return (
+    <MochiClient
+      homepageName={config.homepageName}
+      ttsApiUrl={config.chatApiUrl.replace(/\/[^/]*$/, "/tts_cantonese")}
+    />
+  );
 }

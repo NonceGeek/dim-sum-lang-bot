@@ -9,11 +9,14 @@ import {
   type ColourwayName,
   type Emotion,
 } from "mochi-avatar";
+import { Download, FolderOpen, X } from "lucide-react";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
+import { loadVoicePack, type VoicePack } from "@/lib/mochi-voice-pack";
 
 type MochiClientProps = {
   homepageName: string;
+  ttsApiUrl: string;
 };
 
 type Lang = "zh" | "en" | "yue";
@@ -31,10 +34,20 @@ const MOTIONS = ["nod", "sway", "hop", "swing", "turn", "wander"] as const;
 
 type MotionName = (typeof MOTIONS)[number];
 
+// A line Mochi can say. `audio` is a pre-recorded clip URL; leave it empty and the
+// sentence is spoken through the Cantonese TTS instead.
+type SayLine = { sentence: string; audio: string };
+
+const BUBBLE_LINGER_MS = 2500;
+
+// Where the speech bubble's tail points, as fractions of the canvas (0..1, origin top-left).
+// The bubble grows up and to the right from this point.
+const BUBBLE_ANCHOR = { x: 0.62, y: 0.4 };
+
 const LANG_OPTIONS: { id: Lang; label: string }[] = [
+  { id: "yue", label: "粵語" },
   { id: "zh", label: "中文" },
   { id: "en", label: "English" },
-  { id: "yue", label: "粵語" },
 ];
 
 const COPY: Record<
@@ -47,6 +60,16 @@ const COPY: Record<
     colourway: string;
     stop: string;
     poke: string;
+    say: string;
+    sayPlaceholder: string;
+    sayLoading: string;
+    saySentences: SayLine[];
+    saySentencesExampleLabel: string;
+    saySentencesExampleLink: string;
+    loadVoicePack: string;
+    clearVoicePack: string;
+    voicePackLoaded: string;
+    voicePackError: string;
     poweredBy: string;
     ariaAvatar: string;
     emotions: Record<Emotion, string>;
@@ -62,6 +85,24 @@ const COPY: Record<
     colourway: "配色",
     stop: "停止",
     poke: "戳一下",
+    say: "讲点咩",
+    sayPlaceholder: "选一句让 Mochi 讲…",
+    sayLoading: "Mochi 正在准备…",
+    saySentencesExampleLabel: "下载语音包示例",
+    saySentencesExampleLink: "/mochi/voice-pack-yue.zip",
+    loadVoicePack: "加载本地语音包",
+    clearVoicePack: "恢复默认",
+    voicePackLoaded: "已加载语音包",
+    voicePackError: "语音包读取失败",
+    saySentences: [
+      { sentence: "你好呀！我是 Mochi～", audio: "" },
+      { sentence: "早上好！今天也要开开心心哦！", audio: "" },
+      { sentence: "吃饭了吗？", audio: "" },
+      { sentence: "一起去喝早茶吃点心吧！", audio: "" },
+      { sentence: "今天天气真好，出去走走吧！", audio: "" },
+      { sentence: "谢谢你陪我聊天！", audio: "" },
+      { sentence: "拜拜，下次见！", audio: "" },
+    ],
     poweredBy: "技术支持",
     ariaAvatar: "可互动的 Mochi 形象",
     emotions: {
@@ -99,6 +140,24 @@ const COPY: Record<
     colourway: "Colourway",
     stop: "stop",
     poke: "poke",
+    say: "Say something",
+    sayPlaceholder: "Pick a line for Mochi to say…",
+    sayLoading: "Mochi is getting ready…",
+    saySentencesExampleLabel: "Download voice pack example",
+    saySentencesExampleLink: "/mochi/voice-pack-yue.zip",
+    loadVoicePack: "Load local voice pack",
+    clearVoicePack: "Use default",
+    voicePackLoaded: "Voice pack loaded",
+    voicePackError: "Couldn't read voice pack",
+    saySentences: [
+      { sentence: "Hi there! I'm Mochi~", audio: "" },
+      { sentence: "Good morning! Let's have a happy day!", audio: "" },
+      { sentence: "Have you eaten yet?", audio: "" },
+      { sentence: "Let's go for dim sum together!", audio: "" },
+      { sentence: "Lovely weather today, let's go for a walk!", audio: "" },
+      { sentence: "Thanks for chatting with me!", audio: "" },
+      { sentence: "Bye-bye, see you next time!", audio: "" },
+    ],
     poweredBy: "Powered by",
     ariaAvatar: "Interactive Mochi avatar",
     emotions: {
@@ -136,6 +195,24 @@ const COPY: Record<
     colourway: "配色",
     stop: "停低",
     poke: "戳一下",
+    say: "講啲咩？",
+    sayPlaceholder: "揀一句等 Mochi 講…",
+    sayLoading: "Mochi 準備緊…",
+    saySentencesExampleLabel: "下載語音包示例",
+    saySentencesExampleLink: "/mochi/voice-pack-yue.zip",
+    loadVoicePack: "載入本地語音包",
+    clearVoicePack: "用返預設",
+    voicePackLoaded: "已載入語音包",
+    voicePackError: "讀唔到語音包",
+    saySentences: [
+      { sentence: "你好呀！我係 Mochi～", audio: "/mochi/yue/01.wav" },
+      { sentence: "早晨！今日都要開開心心㗎！", audio: "/mochi/yue/02.wav" },
+      { sentence: "食咗飯未呀？", audio: "/mochi/yue/03.wav" },
+      { sentence: "一齊去飲茶食點心啦！", audio: "/mochi/yue/04.wav" },
+      { sentence: "今日天氣好好，出去行吓啦！", audio: "/mochi/yue/05.wav" },
+      { sentence: "多謝晒你陪我傾偈！", audio: "/mochi/yue/06.wav" },
+      { sentence: "拜拜，下次見！", audio: "/mochi/yue/07.wav" },
+    ],
     poweredBy: "技術支援",
     ariaAvatar: "可以互動嘅 Mochi 形象",
     emotions: {
@@ -167,17 +244,55 @@ const COPY: Record<
   },
 };
 
-export function MochiClient({ homepageName }: MochiClientProps) {
+export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const avatarRef = useRef<DoughAvatar | null>(null);
   const rafRef = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speakingRef = useRef(false);
+  const sayIdRef = useRef(0);
+  const bubbleTimerRef = useRef<number | null>(null);
+  const voicePackInputRef = useRef<HTMLInputElement | null>(null);
+  const voicePackRef = useRef<VoicePack | null>(null);
 
-  const [lang, setLang] = useState<Lang>("zh");
+  const [lang, setLang] = useState<Lang>("yue");
   const [emotion, setEmotion] = useState<Emotion>("happy");
   const [colourway, setColourway] = useState<ColourwayName>("matcha");
   const [ready, setReady] = useState(false);
+  const [bubbleText, setBubbleText] = useState("");
+  const [sayLoading, setSayLoading] = useState(false);
+  const [voicePack, setVoicePack] = useState<{ name: string; pack: VoicePack } | null>(null);
+  const [voicePackError, setVoicePackError] = useState("");
 
   const t = COPY[lang];
+  // A loaded pack replaces the built-in lines for every UI language until cleared.
+  const saySentences = voicePack?.pack.lines ?? t.saySentences;
+
+  const replaceVoicePack = useCallback((next: { name: string; pack: VoicePack } | null) => {
+    voicePackRef.current?.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    voicePackRef.current = next?.pack ?? null;
+    setVoicePack(next);
+  }, []);
+
+  useEffect(() => () => {
+    voicePackRef.current?.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+
+  const onVoicePackFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so picking the same file again still fires onChange.
+    e.target.value = "";
+    if (!file) return;
+    setVoicePackError("");
+    try {
+      const pack = await loadVoicePack(file);
+      replaceVoicePack({ name: file.name, pack });
+    } catch (err) {
+      // DO NOT REMOVE THIS CONSOLE.LOG
+      console.log("voice pack error", err);
+      setVoicePackError(err instanceof Error ? err.message : String(err));
+    }
+  }, [replaceVoicePack]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -209,6 +324,12 @@ export function MochiClient({ homepageName }: MochiClientProps) {
 
     const tick = (now: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (speakingRef.current) {
+        // The TTS audio is cross-origin, so the mouth is mimed rather than driven by an analyser.
+        const syllable = Math.abs(Math.sin(now / 85));
+        const phrase = 0.6 + 0.4 * Math.sin(now / 230);
+        avatar.setMouthOpen(0.15 + 0.6 * syllable * phrase);
+      }
       avatar.render(now);
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -217,6 +338,9 @@ export function MochiClient({ homepageName }: MochiClientProps) {
     return () => {
       cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", onResize);
+      audioRef.current?.pause();
+      speakingRef.current = false;
+      if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
       avatar.dispose();
       avatarRef.current = null;
       setReady(false);
@@ -270,6 +394,69 @@ export function MochiClient({ homepageName }: MochiClientProps) {
     avatar.playMotion(name);
   }, []);
 
+  const stopSpeaking = useCallback(() => {
+    speakingRef.current = false;
+    const avatar = avatarRef.current;
+    avatar?.setMouthOpen(0);
+    avatar?.setSpeaking(false);
+  }, []);
+
+  const hideBubbleLater = useCallback((ms: number) => {
+    if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
+    bubbleTimerRef.current = window.setTimeout(() => setBubbleText(""), ms);
+  }, []);
+
+  const fetchTtsAudio = useCallback(async (text: string) => {
+    const res = await fetch(ttsApiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`tts ${res.status}`);
+    const data = (await res.json()) as { audio_url?: string };
+    if (!data.audio_url) throw new Error("no audio_url");
+    return data.audio_url;
+  }, [ttsApiUrl]);
+
+  const say = useCallback(async ({ sentence, audio: clip }: SayLine) => {
+    const id = ++sayIdRef.current;
+    audioRef.current?.pause();
+    stopSpeaking();
+    if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
+    setBubbleText(sentence);
+    setSayLoading(true);
+
+    try {
+      const audioUrl = clip.trim() || (await fetchTtsAudio(sentence));
+      // A newer line was picked while this one was loading.
+      if (id !== sayIdRef.current) return;
+
+      if (!audioRef.current) audioRef.current = new Audio();
+      const audio = audioRef.current;
+      audio.src = audioUrl;
+      audio.onplaying = () => {
+        speakingRef.current = true;
+        avatarRef.current?.setSpeaking(true);
+      };
+      const finish = () => {
+        stopSpeaking();
+        hideBubbleLater(BUBBLE_LINGER_MS);
+      };
+      audio.onended = finish;
+      audio.onerror = finish;
+      await audio.play();
+    } catch (err) {
+      // DO NOT REMOVE THIS CONSOLE.LOG
+      console.log("mochi tts error", err);
+      if (id === sayIdRef.current) {
+        stopSpeaking();
+        hideBubbleLater(BUBBLE_LINGER_MS);
+      }
+    } finally {
+      if (id === sayIdRef.current) setSayLoading(false);
+    }
+  }, [fetchTtsAudio, stopSpeaking, hideBubbleLater]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header homepageName={homepageName} />
@@ -297,20 +484,107 @@ export function MochiClient({ homepageName }: MochiClientProps) {
           </div>
 
           <div className="rounded-2xl border border-border bg-gradient-to-b from-emerald-50/80 to-background dark:from-emerald-950/30 dark:to-background p-4 sm:p-6">
-            <canvas
-              ref={canvasRef}
-              className="mx-auto block w-full max-w-md aspect-square touch-none cursor-pointer"
-              onPointerMove={onPointerMove}
-              onPointerLeave={onPointerLeave}
-              onPointerDown={onPointerDown}
-              aria-label={t.ariaAvatar}
-            />
+            <div className="relative mx-auto w-full max-w-md">
+              <canvas
+                ref={canvasRef}
+                className="block w-full aspect-square touch-none cursor-pointer"
+                onPointerMove={onPointerMove}
+                onPointerLeave={onPointerLeave}
+                onPointerDown={onPointerDown}
+                aria-label={t.ariaAvatar}
+              />
+              {bubbleText ? (
+                <div
+                  className="pointer-events-none absolute"
+                  style={{ left: `${BUBBLE_ANCHOR.x * 100}%`, top: `${BUBBLE_ANCHOR.y * 100}%` }}
+                >
+                  {/* -left-8 and bottom-3 put the tail tip on the anchor point. */}
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="absolute -left-8 bottom-3 w-max max-w-[min(16rem,60vw)] rounded-2xl border border-border bg-card px-4 py-2 text-sm sm:text-base text-foreground shadow-md animate-in fade-in zoom-in-95 origin-bottom-left"
+                  >
+                    <span className="relative z-10">{bubbleText}</span>
+                    <span
+                      aria-hidden
+                      className="absolute -bottom-2 left-6 h-4 w-4 rotate-45 border-b border-r border-border bg-card"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
             {!ready ? (
               <p className="text-center text-sm text-muted-foreground mt-2">{t.loading}</p>
             ) : null}
           </div>
-
+          {/* 讲话、表情、动作、配色 */}
+          {/* 讲点咩，下拉框里是备选的句子，在选中后，由 mochi 讲出来，mochi 右上方出现说话气泡，说话框里显示选中的句子 */}
           <div className="space-y-4">
+            <section className="space-y-2">
+              <h2 className="text-sm font-medium text-muted-foreground">{t.say}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value=""
+                  disabled={sayLoading}
+                  onChange={(e) => {
+                    const line = saySentences[Number(e.target.value)];
+                    if (e.target.value && line) void say(line);
+                  }}
+                  className="w-full sm:w-auto min-w-64 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground shadow-xs focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50"
+                >
+                  <option value="">{sayLoading ? t.sayLoading : t.sayPlaceholder}</option>
+                  {saySentences.map((line, i) => (
+                    <option key={`${voicePack?.name ?? lang}-${i}`} value={i}>
+                      {line.sentence}
+                    </option>
+                  ))}
+                </select>
+                <Button asChild size="sm" variant="outline">
+                  <a href={t.saySentencesExampleLink} download>
+                    <Download />
+                    {t.saySentencesExampleLabel}
+                  </a>
+                </Button>
+                {/* 加载本地语音包：zip 内含 say-sentences.json 和对应的音频文件 */}
+                <input
+                  ref={voicePackInputRef}
+                  type="file"
+                  accept=".zip,application/zip"
+                  className="hidden"
+                  onChange={onVoicePackFile}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => voicePackInputRef.current?.click()}
+                >
+                  <FolderOpen />
+                  {t.loadVoicePack}
+                </Button>
+              </div>
+              {voicePack ? (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {t.voicePackLoaded}: {voicePack.name}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => replaceVoicePack(null)}
+                  >
+                    <X />
+                    {t.clearVoicePack}
+                  </Button>
+                </p>
+              ) : null}
+              {voicePackError ? (
+                <p className="text-xs text-destructive">
+                  {t.voicePackError}: {voicePackError}
+                </p>
+              ) : null}
+            </section>
+
             <section className="space-y-2">
               <h2 className="text-sm font-medium text-muted-foreground">{t.emotion}</h2>
               <div className="flex flex-wrap gap-2">
