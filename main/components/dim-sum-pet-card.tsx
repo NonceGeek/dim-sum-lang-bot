@@ -12,7 +12,7 @@ export function DimSumPetCard() {
           DimSum Pet：可互动的多语言电子宠物
         </h3>
         <Link
-          href="/mochi"
+          href="/pet"
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
         >
           DimSum Pet

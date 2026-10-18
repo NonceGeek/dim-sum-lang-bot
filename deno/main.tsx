@@ -30,7 +30,7 @@ const DASHSCOPE_COMPAT_BASE =
   Deno.env.get("DASHSCOPE_COMPAT_BASE") ||
   "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
-const CHAT_MODEL = Deno.env.get("DASHSCOPE_CHAT_MODEL") || "qwen3-30b-a3b";
+const CHAT_MODEL = Deno.env.get("DASHSCOPE_CHAT_MODEL") || "qwen3.8-flash";
 const EMBEDDING_MODEL =
   Deno.env.get("DASHSCOPE_EMBEDDING_MODEL") || "text-embedding-v4";
 const EMBEDDING_DIMENSIONS = 1024;
@@ -1145,6 +1145,7 @@ router
       const systemPrompt = promptResolved.prompt;
 
       console.log("systemPrompt:", systemPrompt);
+      console.log("model:", CHAT_MODEL);
 
       const citations = `
       下面是可作为背景知识的资料：

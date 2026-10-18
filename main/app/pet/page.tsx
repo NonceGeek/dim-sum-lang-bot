@@ -1,5 +1,5 @@
 import { getReadmeConfig } from "@/lib/readme-config";
-import { MochiClient } from "@/app/mochi/mochi-client";
+import { MochiClient } from "@/app/pet/mochi-client";
 
 export default function MochiPage() {
   const config = getReadmeConfig();

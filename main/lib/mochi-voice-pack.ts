@@ -1,4 +1,4 @@
-export type VoicePackLine = { sentence: string; audio: string };
+export type VoicePackLine = { sentence: string; audio: string; emotion: string };
 
 export type VoicePack = {
   lines: VoicePackLine[];
@@ -6,7 +6,7 @@ export type VoicePack = {
   objectUrls: string[];
 };
 
-const MANIFEST_NAME = "say-sentences.json";
+const MANIFEST_NAME = "say-sentences.csv";
 
 const AUDIO_MIME: Record<string, string> = {
   wav: "audio/wav",
@@ -74,7 +74,7 @@ async function unzip(buffer: ArrayBuffer): Promise<Record<string, Uint8Array<Arr
 
 /**
  * Find the zip entry an `audio` path refers to. Paths are relative to the folder
- * holding `say-sentences.json`, e.g. `./sentences-voice/thx.wav`, so the pack works
+ * holding `say-sentences.csv`, e.g. `./sentences-voice/thx.wav`, so the pack works
  * the same whether it is unzipped on disk or loaded here.
  */
 function resolvePackPath(manifestName: string, audio: string): string {
@@ -88,8 +88,74 @@ function resolvePackPath(manifestName: string, audio: string): string {
   return parts.join("/");
 }
 
+/** Split one CSV line into fields, honouring double-quoted values. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      fields.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
 /**
- * Read a voice pack zip: `say-sentences.json` (`{ saySentences: [{ sentence, audio }] }`)
+ * Parse `say-sentences.csv`: a header row `sentence,audio,emotion` then one line
+ * per sentence. `emotion` may be empty. Relative `audio` paths are resolved from
+ * the CSV's folder; remote URLs are kept as-is; an empty `audio` still falls back to TTS.
+ */
+function parseSaySentencesCsv(text: string): VoicePackLine[] {
+  const rows = text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (rows.length === 0) throw new Error("say-sentences.csv is empty");
+
+  const header = parseCsvLine(rows[0]).map((h) => h.trim().toLowerCase());
+  const sentenceIdx = header.indexOf("sentence");
+  const audioIdx = header.indexOf("audio");
+  const emotionIdx = header.indexOf("emotion");
+  if (sentenceIdx < 0 || audioIdx < 0) {
+    throw new Error("say-sentences.csv needs sentence and audio columns");
+  }
+
+  const lines: VoicePackLine[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const fields = parseCsvLine(rows[i]);
+    const sentence = (fields[sentenceIdx] ?? "").trim();
+    if (!sentence) continue;
+    lines.push({
+      sentence,
+      audio: (fields[audioIdx] ?? "").trim(),
+      emotion: emotionIdx >= 0 ? (fields[emotionIdx] ?? "").trim() : "",
+    });
+  }
+  return lines;
+}
+
+/**
+ * Read a voice pack zip: `say-sentences.csv` (`sentence,audio,emotion` columns)
  * plus the audio files it references. Remote `audio` URLs are kept as-is, and an
  * empty `audio` still falls back to TTS.
  */
@@ -103,21 +169,16 @@ export async function loadVoicePack(file: File): Promise<VoicePack> {
     .sort((a, b) => a.split("/").length - b.split("/").length)[0];
   if (!manifestName) throw new Error(`missing ${MANIFEST_NAME}`);
 
-  const manifest = JSON.parse(new TextDecoder().decode(entries[manifestName])) as {
-    saySentences?: unknown;
-  };
-  if (!Array.isArray(manifest.saySentences)) throw new Error("saySentences is not an array");
+  const saySentences = parseSaySentencesCsv(new TextDecoder().decode(entries[manifestName]));
 
   const objectUrls: string[] = [];
   const lines: VoicePackLine[] = [];
 
-  for (const item of manifest.saySentences) {
-    const sentence = typeof item?.sentence === "string" ? item.sentence.trim() : "";
-    if (!sentence) continue;
-    const audio = typeof item?.audio === "string" ? item.audio.trim() : "";
+  for (const item of saySentences) {
+    const { sentence, audio, emotion } = item;
 
     if (!audio || /^(https?:|blob:|data:)/.test(audio)) {
-      lines.push({ sentence, audio });
+      lines.push({ sentence, audio, emotion });
       continue;
     }
 
@@ -128,7 +189,7 @@ export async function loadVoicePack(file: File): Promise<VoicePack> {
       new Blob([entries[entry]], { type: AUDIO_MIME[ext] ?? "application/octet-stream" }),
     );
     objectUrls.push(url);
-    lines.push({ sentence, audio: url });
+    lines.push({ sentence, audio: url, emotion });
   }
 
   if (lines.length === 0) {

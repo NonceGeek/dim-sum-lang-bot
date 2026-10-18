@@ -5,9 +5,11 @@ import {
   DoughAvatar,
   EMOTIONS,
   MOCHI,
+  PLAIN,
   mochiIn,
   type ColourwayName,
   type Emotion,
+  type FaceSpec,
 } from "mochi-avatar";
 import { Download, FolderOpen, X } from "lucide-react";
 import { Header } from "@/components/header";
@@ -20,6 +22,7 @@ type MochiClientProps = {
 };
 
 type Lang = "zh" | "en" | "yue";
+type PetId = "mochi" | "bao";
 
 const COLOURWAYS: ColourwayName[] = [
   "matcha",
@@ -32,11 +35,41 @@ const COLOURWAYS: ColourwayName[] = [
 
 const MOTIONS = ["nod", "sway", "hop", "swing", "turn", "wander"] as const;
 
+const PET_OPTIONS: { id: PetId; label: string }[] = [
+  { id: "bao", label: "Bao" },
+  { id: "mochi", label: "Mochi" },
+];
+
+// Steamed-bun companion built from PLAIN so she is visibly not Mochi.
+// Outline traced from public/avatar.png: a dome tapering to a soft peak, widest
+// ~40% up, on a broad rounded base. The knot and pleats can't be drawn by the engine.
+const BAO: FaceSpec = {
+  ...PLAIN,
+  bodyH: 82,
+  waist: 0.4,
+  upperShoulder: 1.7,
+  lowerShoulder: 2.6,
+  cheekAlpha: 0.3,
+  cheekX: 0.58,
+  cheekY: 0.38,
+  cheekR: 11,
+  colBody: "#f3e2c7",
+  colShadow: "#e5cfaa",
+  colInk: "#5c4632",
+  colCheek: "#ef9a8f",
+  colGlint: "#ffffff",
+};
+
+function faceForPet(pet: PetId, colourway: ColourwayName): FaceSpec {
+  return pet === "bao" ? BAO : mochiIn(colourway, MOCHI);
+}
+
 type MotionName = (typeof MOTIONS)[number];
 
 // A line Mochi can say. `audio` is a pre-recorded clip URL; leave it empty and the
-// sentence is spoken through the Cantonese TTS instead.
-type SayLine = { sentence: string; audio: string };
+// sentence is spoken through the Cantonese TTS instead. `emotion` is one of the
+// Mochi emotions (or empty to keep the current face).
+type SayLine = { sentence: string; audio: string; emotion?: string };
 
 const BUBBLE_LINGER_MS = 2500;
 
@@ -44,9 +77,13 @@ const BUBBLE_LINGER_MS = 2500;
 // The bubble grows up and to the right from this point.
 const BUBBLE_ANCHOR = { x: 0.62, y: 0.4 };
 
+// Bottom-centre of Bao's steam, as fractions of the canvas; y is her head top in fit-canvas.
+const STEAM_ANCHOR = { x: 0.5, y: 0.47 };
+const STEAM_DURATION_MS = 3000;
+
 const LANG_OPTIONS: { id: Lang; label: string }[] = [
   { id: "yue", label: "粵語" },
-  { id: "zh", label: "中文" },
+  { id: "zh", label: "普通话" },
   { id: "en", label: "English" },
 ];
 
@@ -70,10 +107,14 @@ const COPY: Record<
     clearVoicePack: string;
     voicePackLoaded: string;
     voicePackError: string;
+    sayCustomPlaceholder: string;
+    sayCustom: string;
+    sayOr: string;
     poweredBy: string;
     ariaAvatar: string;
     emotions: Record<Emotion, string>;
     motions: Record<MotionName, string>;
+    steam: string;
     colourways: Record<ColourwayName, string>;
   }
 > = {
@@ -94,6 +135,9 @@ const COPY: Record<
     clearVoicePack: "恢复默认",
     voicePackLoaded: "已加载语音包",
     voicePackError: "语音包读取失败",
+    sayCustomPlaceholder: "输入任意一句…",
+    sayCustom: "发音",
+    sayOr: "或",
     saySentences: [
       { sentence: "你好呀！我是 Mochi～", audio: "" },
       { sentence: "早上好！今天也要开开心心哦！", audio: "" },
@@ -123,6 +167,7 @@ const COPY: Record<
       turn: "转身",
       wander: "徘徊",
     },
+    steam: "冒蒸汽",
     colourways: {
       matcha: "抹茶",
       sakura: "樱花",
@@ -149,6 +194,9 @@ const COPY: Record<
     clearVoicePack: "Use default",
     voicePackLoaded: "Voice pack loaded",
     voicePackError: "Couldn't read voice pack",
+    sayCustomPlaceholder: "Type any sentence…",
+    sayCustom: "Speak",
+    sayOr: "or",
     saySentences: [
       { sentence: "Hi there! I'm Mochi~", audio: "" },
       { sentence: "Good morning! Let's have a happy day!", audio: "" },
@@ -178,6 +226,7 @@ const COPY: Record<
       turn: "turn",
       wander: "wander",
     },
+    steam: "steam",
     colourways: {
       matcha: "matcha",
       sakura: "sakura",
@@ -196,16 +245,19 @@ const COPY: Record<
     stop: "停低",
     poke: "戳一下",
     say: "講啲咩？",
-    sayPlaceholder: "揀一句等 Mochi 講…",
-    sayLoading: "Mochi 準備緊…",
+    sayPlaceholder: "揀一句等 AI Pet 講…",
+    sayLoading: "AI Pet準備緊…",
     saySentencesExampleLabel: "下載語音包示例",
     saySentencesExampleLink: "/mochi/voice-pack-yue.zip",
     loadVoicePack: "載入本地語音包",
     clearVoicePack: "用返預設",
     voicePackLoaded: "已載入語音包",
     voicePackError: "讀唔到語音包",
+    sayCustomPlaceholder: "打一句想佢講嘅嘢…",
+    sayCustom: "發音",
+    sayOr: "或者",
     saySentences: [
-      { sentence: "你好呀！我係 Mochi～", audio: "/mochi/yue/01.wav" },
+      { sentence: "你好吖！我係包仔～", audio: "/mochi/yue/01.wav" },
       { sentence: "早晨！今日都要開開心心㗎！", audio: "/mochi/yue/02.wav" },
       { sentence: "食咗飯未呀？", audio: "/mochi/yue/03.wav" },
       { sentence: "一齊去飲茶食點心啦！", audio: "/mochi/yue/04.wav" },
@@ -214,7 +266,7 @@ const COPY: Record<
       { sentence: "拜拜，下次見！", audio: "/mochi/yue/07.wav" },
     ],
     poweredBy: "技術支援",
-    ariaAvatar: "可以互動嘅 Mochi 形象",
+    ariaAvatar: "可以互動嘅 AI Pet 形象",
     emotions: {
       neutral: "平靜",
       happy: "開心",
@@ -233,6 +285,7 @@ const COPY: Record<
       turn: "轉身",
       wander: "行來行去",
     },
+    steam: "冒蒸氣",
     colourways: {
       matcha: "抹茶",
       sakura: "櫻花",
@@ -256,11 +309,17 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   const voicePackRef = useRef<VoicePack | null>(null);
 
   const [lang, setLang] = useState<Lang>("yue");
+  const [pet, setPet] = useState<PetId>("bao");
+  // Bumped per click so a repeat press restarts the steam animation from the start.
+  const [steamKey, setSteamKey] = useState(0);
+  const [steaming, setSteaming] = useState(false);
+  const steamTimerRef = useRef<number | null>(null);
   const [emotion, setEmotion] = useState<Emotion>("happy");
   const [colourway, setColourway] = useState<ColourwayName>("matcha");
   const [ready, setReady] = useState(false);
   const [bubbleText, setBubbleText] = useState("");
   const [sayLoading, setSayLoading] = useState(false);
+  const [customSentence, setCustomSentence] = useState("");
   const [voicePack, setVoicePack] = useState<{ name: string; pack: VoicePack } | null>(null);
   const [voicePackError, setVoicePackError] = useState("");
 
@@ -302,7 +361,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
     if (!ctx) return;
 
     const avatar = new DoughAvatar(ctx, {
-      face: mochiIn(colourway, MOCHI),
+      face: faceForPet(pet, colourway),
       size: "fit-canvas",
     });
     avatarRef.current = avatar;
@@ -354,8 +413,8 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   }, [emotion]);
 
   useEffect(() => {
-    avatarRef.current?.setFace(mochiIn(colourway, MOCHI));
-  }, [colourway]);
+    avatarRef.current?.setFace(faceForPet(pet, colourway));
+  }, [pet, colourway]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const avatar = avatarRef.current;
@@ -383,6 +442,22 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
       // Default impulse is negative (squash). Positive values expand instead.
       avatar.poke(-0.55);
     }
+  }, []);
+
+  const steam = useCallback(() => {
+    avatarRef.current?.poke(-0.3);
+    setSteamKey((k) => k + 1);
+    setSteaming(true);
+    if (steamTimerRef.current !== null) window.clearTimeout(steamTimerRef.current);
+    steamTimerRef.current = window.setTimeout(() => setSteaming(false), STEAM_DURATION_MS);
+  }, []);
+
+  useEffect(() => {
+    if (pet !== "bao") setSteaming(false);
+  }, [pet]);
+
+  useEffect(() => () => {
+    if (steamTimerRef.current !== null) window.clearTimeout(steamTimerRef.current);
   }, []);
 
   const playMotion = useCallback((name: MotionName) => {
@@ -418,13 +493,18 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
     return data.audio_url;
   }, [ttsApiUrl]);
 
-  const say = useCallback(async ({ sentence, audio: clip }: SayLine) => {
+  const say = useCallback(async ({ sentence, audio: clip, emotion: lineEmotion }: SayLine) => {
     const id = ++sayIdRef.current;
     audioRef.current?.pause();
     stopSpeaking();
     if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
     setBubbleText(sentence);
     setSayLoading(true);
+
+    // Apply the line's emotion before audio starts, so her face matches what she says.
+    if (lineEmotion && (EMOTIONS as readonly string[]).includes(lineEmotion)) {
+      setEmotion(lineEmotion as Emotion);
+    }
 
     try {
       const audioUrl = clip.trim() || (await fetchTtsAudio(sentence));
@@ -462,7 +542,22 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
       <Header homepageName={homepageName} />
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto space-y-6">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end items-center gap-2">
+            <label className="sr-only" htmlFor="pet-select">
+              Pet
+            </label>
+            <select
+              id="pet-select"
+              value={pet}
+              onChange={(e) => setPet(e.target.value as PetId)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-sm text-foreground shadow-xs focus:outline-none focus:ring-2 focus:ring-ring/50"
+            >
+              {PET_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border p-1 bg-card">
               {LANG_OPTIONS.map((opt) => (
                 <Button
@@ -479,7 +574,9 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
           </div>
 
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Mochi</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {PET_OPTIONS.find((opt) => opt.id === pet)?.label ?? pet}
+            </h1>
             <p className="text-muted-foreground">{t.hint}</p>
           </div>
 
@@ -493,6 +590,32 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                 onPointerDown={onPointerDown}
                 aria-label={t.ariaAvatar}
               />
+              {steaming ? (
+                <svg
+                  key={steamKey}
+                  aria-hidden
+                  viewBox="0 0 120 120"
+                  className="pointer-events-none absolute w-[28%]"
+                  style={{
+                    left: `${STEAM_ANCHOR.x * 100}%`,
+                    top: `${STEAM_ANCHOR.y * 100}%`,
+                    transform: "translate(-50%, -100%)",
+                  }}
+                  fill="none"
+                  stroke="rgba(148, 163, 184, 0.75)"
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                >
+                  {[30, 60, 90].map((x, i) => (
+                    <path
+                      key={x}
+                      className="bao-steam-wisp"
+                      style={{ animationDelay: `${i * 0.35}s` }}
+                      d={`M${x} 115 C${x - 12} 95 ${x + 12} 80 ${x} 60 C${x - 12} 40 ${x + 12} 25 ${x} 8`}
+                    />
+                  ))}
+                </svg>
+              ) : null}
               {bubbleText ? (
                 <div
                   className="pointer-events-none absolute"
@@ -533,11 +656,17 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                   className="w-full sm:w-auto min-w-64 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground shadow-xs focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50"
                 >
                   <option value="">{sayLoading ? t.sayLoading : t.sayPlaceholder}</option>
-                  {saySentences.map((line, i) => (
-                    <option key={`${voicePack?.name ?? lang}-${i}`} value={i}>
-                      {line.sentence}
-                    </option>
-                  ))}
+                  {saySentences.map((line, i) => {
+                    const emotionLabel =
+                      line.emotion && (EMOTIONS as readonly string[]).includes(line.emotion)
+                        ? t.emotions[line.emotion as Emotion]
+                        : "";
+                    return (
+                      <option key={`${voicePack?.name ?? lang}-${i}`} value={i}>
+                        {emotionLabel ? `${line.sentence}（${emotionLabel}）` : line.sentence}
+                      </option>
+                    );
+                  })}
                 </select>
                 <Button asChild size="sm" variant="outline">
                   <a href={t.saySentencesExampleLink} download>
@@ -545,7 +674,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                     {t.saySentencesExampleLabel}
                   </a>
                 </Button>
-                {/* 加载本地语音包：zip 内含 say-sentences.json 和对应的音频文件 */}
+                {/* 加载本地语音包：zip 内含 say-sentences.csv 和对应的音频文件 */}
                 <input
                   ref={voicePackInputRef}
                   type="file"
@@ -583,8 +712,37 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                   {t.voicePackError}: {voicePackError}
                 </p>
               ) : null}
+            {/* Input box for any sentence, plus a button that pronounces it. */}
+            <h2 className="text-sm font-medium text-muted-foreground">{t.sayOr}</h2>
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const sentence = customSentence.trim();
+                if (!sentence || sayLoading) return;
+                void say({ sentence, audio: "" });
+              }}
+            >
+              <input
+                type="text"
+                value={customSentence}
+                disabled={sayLoading}
+                placeholder={t.sayCustomPlaceholder}
+                onChange={(e) => setCustomSentence(e.target.value)}
+                className="w-full sm:w-auto min-w-64 flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground shadow-xs focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                variant="outline"
+                disabled={sayLoading || !customSentence.trim()}
+              >
+                {t.sayCustom}
+              </Button>
+            </form>
             </section>
 
+            {/* 表情 */}
             <section className="space-y-2">
               <h2 className="text-sm font-medium text-muted-foreground">{t.emotion}</h2>
               <div className="flex flex-wrap gap-2">
@@ -616,6 +774,17 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                     {t.motions[name]}
                   </Button>
                 ))}
+                {pet === "bao" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={steam}
+                    className="border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                  >
+                    {t.steam}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -635,22 +804,24 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
               </div>
             </section>
 
-            <section className="space-y-2">
-              <h2 className="text-sm font-medium text-muted-foreground">{t.colourway}</h2>
-              <div className="flex flex-wrap gap-2">
-                {COLOURWAYS.map((name) => (
-                  <Button
-                    key={name}
-                    type="button"
-                    size="sm"
-                    variant={colourway === name ? "default" : "outline"}
-                    onClick={() => setColourway(name)}
-                  >
-                    {t.colourways[name]}
-                  </Button>
-                ))}
-              </div>
-            </section>
+            {pet === "mochi" ? (
+              <section className="space-y-2">
+                <h2 className="text-sm font-medium text-muted-foreground">{t.colourway}</h2>
+                <div className="flex flex-wrap gap-2">
+                  {COLOURWAYS.map((name) => (
+                    <Button
+                      key={name}
+                      type="button"
+                      size="sm"
+                      variant={colourway === name ? "default" : "outline"}
+                      onClick={() => setColourway(name)}
+                    >
+                      {t.colourways[name]}
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
 
           <p className="text-xs text-muted-foreground text-center">

@@ -102,7 +102,7 @@ LIMIT  10;
 
 ### Step 3：与 LLM 交互——带记忆的多轮对话
 
-检索到的上下文段落与对话历史一同构造 Prompt，提交给 LLM（当前使用 `qwen/qwen3-30b-a3b` via OpenRouter）：
+检索到的上下文段落与对话历史一同构造 Prompt，提交给 LLM（当前使用 `qwen/qwen3.8-flash` via OpenRouter）：
 
 ```
 System Prompt（角色定义：专业心理咨询师 + 背景资料注入）

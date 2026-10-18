@@ -3,7 +3,7 @@
 > Deno backend for DimSumChatbot: chat, TF-IDF / vector search, RAG, Cantonese ASR & TTS, Zhihu search, and certificate helpers (`agent_lib_cert_master`).
 >
 > LLM, embeddings, ASR & TTS via **Alibaba DashScope / 百炼**:
-> - Chat: `qwen3-30b-a3b` → `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
+> - Chat: `qwen3.8-flash` → `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
 > - Embeddings: `text-embedding-v4` (1024 dims) → `.../compatible-mode/v1/embeddings`
 > - ASR: `qwen3-asr-flash` → same chat completions path with `input_audio`
 > - TTS: `qwen3-tts-flash` → DashScope multimodal generation API
@@ -654,7 +654,7 @@ The server calls `supabase.rpc("match_lib_" + lib, …)` with embeddings from Da
 |----------|----------|---------|-------------|
 | `DASHSCOPE_API_KEY` | Yes | — | Alibaba DashScope / 百炼 key for chat, embeddings, ASR, TTS (alias: `ALI_API_KEY`) |
 | `DASHSCOPE_COMPAT_BASE` | No | `https://dashscope.aliyuncs.com/compatible-mode/v1` | OpenAI-compatible base (Beijing). Use Singapore/intl URL if needed |
-| `DASHSCOPE_CHAT_MODEL` | No | `qwen3-30b-a3b` | Chat model for `/api/chat` and `/api/search_and_chat` |
+| `DASHSCOPE_CHAT_MODEL` | No | `qwen3.8-flash` | Chat model for `/api/chat` and `/api/search_and_chat` |
 | `DASHSCOPE_EMBEDDING_MODEL` | No | `text-embedding-v4` | Embedding model for vector search |
 | `DASHSCOPE_ASR_MODEL` | No | `qwen3-asr-flash` | ASR model for `/api/trans_cantonese` |
 | `DASHSCOPE_TTS_MODEL` | No | `qwen3-tts-flash` | TTS model for `/api/tts_cantonese` |

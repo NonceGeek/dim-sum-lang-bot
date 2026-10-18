@@ -123,6 +123,19 @@
   }
 }
 
+/* Bao 冒蒸汽: wisps rise from her head, stretch and fade. */
+@keyframes bao-steam-rise {
+  0% { transform: translateY(25%) scaleY(0.5); opacity: 0; }
+  25% { opacity: 0.9; }
+  100% { transform: translateY(-55%) scaleY(1.15); opacity: 0; }
+}
+.bao-steam-wisp {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  animation: bao-steam-rise 1.5s ease-out infinite;
+}
+
 /* Markdown rendering in chat */
 .markdown-body {
   line-height: 1.6;

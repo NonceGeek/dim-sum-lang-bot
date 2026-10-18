@@ -30,7 +30,7 @@ Response returned with answer text + source citations
 ## v2
 
 * Optimze the prompt in deno server
-* use New Model (qwen/qwen3-30b-a3b) 
+* use New Model (qwen/qwen3.8-flash) 
 * Optimize the search way
     * tfidf way
     * vector way
