@@ -353,6 +353,46 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
     }
   }, [replaceVoicePack]);
 
+  // ?audio=<zip-url> loads a remote voice pack on open, e.g.
+  // /pet?audio=https://alioss.aidimsum.com/mochi/voice-pack-example.zip
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("audio")?.trim() ?? "";
+    if (!raw) return;
+
+    let cancelled = false;
+    const loadFromUrl = async () => {
+      setVoicePackError("");
+      try {
+        const url = new URL(raw);
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+          throw new Error("audio must be an http(s) URL");
+        }
+        const res = await fetch(url.href);
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        const blob = await res.blob();
+        if (cancelled) return;
+        const name = decodeURIComponent(url.pathname.split("/").pop() || "voice-pack.zip");
+        const pack = await loadVoicePack(new File([blob], name, { type: "application/zip" }));
+        if (cancelled) {
+          pack.objectUrls.forEach((u) => URL.revokeObjectURL(u));
+          return;
+        }
+        replaceVoicePack({ name, pack });
+      } catch (err) {
+        // DO NOT REMOVE THIS CONSOLE.LOG
+        console.log("voice pack url error", err);
+        if (!cancelled) {
+          setVoicePackError(err instanceof Error ? err.message : String(err));
+        }
+      }
+    };
+
+    void loadFromUrl();
+    return () => {
+      cancelled = true;
+    };
+  }, [replaceVoicePack]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
