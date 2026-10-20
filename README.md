@@ -116,6 +116,7 @@ The frontend will start on [http://localhost:3000](http://localhost:3000).
 ## 📚 Documentation
 
 - **Frontend Config**: [main/README.md](./main/README.md#configuration)
+- **Pet / OSS voice-pack CORS**: [main/README.md → OSS CORS](./main/README.md#oss-cors-for-remote-voice-packs)
 - **API Documentation**: [deno-server/apidoc.md](./deno-server/apidoc.md)
 - **Server README**: [deno-server/README.md](./deno-server/README.md)
 

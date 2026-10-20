@@ -107,6 +107,7 @@ const COPY: Record<
     clearVoicePack: string;
     voicePackLoaded: string;
     voicePackError: string;
+    voicePackDownloading: string;
     sayCustomPlaceholder: string;
     sayCustom: string;
     sayOr: string;
@@ -135,6 +136,7 @@ const COPY: Record<
     clearVoicePack: "恢复默认",
     voicePackLoaded: "已加载语音包",
     voicePackError: "语音包读取失败",
+    voicePackDownloading: "下载语音包中…",
     sayCustomPlaceholder: "输入任意一句…",
     sayCustom: "发音",
     sayOr: "或",
@@ -194,6 +196,7 @@ const COPY: Record<
     clearVoicePack: "Use default",
     voicePackLoaded: "Voice pack loaded",
     voicePackError: "Couldn't read voice pack",
+    voicePackDownloading: "Downloading voice pack…",
     sayCustomPlaceholder: "Type any sentence…",
     sayCustom: "Speak",
     sayOr: "or",
@@ -253,6 +256,7 @@ const COPY: Record<
     clearVoicePack: "用返預設",
     voicePackLoaded: "已載入語音包",
     voicePackError: "讀唔到語音包",
+    voicePackDownloading: "下載語音包中…",
     sayCustomPlaceholder: "打一句想佢講嘅嘢…",
     sayCustom: "發音",
     sayOr: "或者",
@@ -322,6 +326,8 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   const [customSentence, setCustomSentence] = useState("");
   const [voicePack, setVoicePack] = useState<{ name: string; pack: VoicePack } | null>(null);
   const [voicePackError, setVoicePackError] = useState("");
+  // null = idle; 0–100 = known length; -1 = downloading without Content-Length
+  const [voicePackProgress, setVoicePackProgress] = useState<number | null>(null);
 
   const t = COPY[lang];
   // A loaded pack replaces the built-in lines for every UI language until cleared.
@@ -362,6 +368,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
     let cancelled = false;
     const loadFromUrl = async () => {
       setVoicePackError("");
+      setVoicePackProgress(0);
       try {
         const url = new URL(raw);
         if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -369,8 +376,32 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
         }
         const res = await fetch(url.href);
         if (!res.ok) throw new Error(`fetch ${res.status}`);
-        const blob = await res.blob();
+
+        const total = Number(res.headers.get("Content-Length") || 0);
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("no response body");
+
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        if (total <= 0) setVoicePackProgress(-1);
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (cancelled) {
+            await reader.cancel();
+            return;
+          }
+          chunks.push(value);
+          received += value.byteLength;
+          if (total > 0) {
+            setVoicePackProgress(Math.min(100, Math.round((received / total) * 100)));
+          }
+        }
+
         if (cancelled) return;
+        setVoicePackProgress(100);
+        const blob = new Blob(chunks as BlobPart[]);
         const name = decodeURIComponent(url.pathname.split("/").pop() || "voice-pack.zip");
         const pack = await loadVoicePack(new File([blob], name, { type: "application/zip" }));
         if (cancelled) {
@@ -384,6 +415,8 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
         if (!cancelled) {
           setVoicePackError(err instanceof Error ? err.message : String(err));
         }
+      } finally {
+        if (!cancelled) setVoicePackProgress(null);
       }
     };
 
@@ -732,6 +765,24 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                   {t.loadVoicePack}
                 </Button>
               </div>
+              {voicePackProgress !== null ? (
+                <div className="space-y-1" role="status" aria-live="polite">
+                  <p className="text-xs text-muted-foreground">
+                    {t.voicePackDownloading}
+                    {voicePackProgress >= 0 ? ` ${voicePackProgress}%` : ""}
+                  </p>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    {voicePackProgress < 0 ? (
+                      <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+                    ) : (
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width] duration-150"
+                        style={{ width: `${voicePackProgress}%` }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ) : null}
               {voicePack ? (
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
                   {t.voicePackLoaded}: {voicePack.name}
