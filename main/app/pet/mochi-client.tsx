@@ -71,19 +71,77 @@ const BAO_COLOURS = [
 
 type BaoColourId = (typeof BAO_COLOURS)[number]["id"];
 
+// Bodies brighter than this (relative luminance, 0..1) vanish on the pale stage, which then darkens.
+const LIGHT_BODY_LUMINANCE = 0.85;
+
+const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+const rgbToHex = (rgb: number[]) =>
+  `#${rgb.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+
+function rgbToHsl([r, g, b]: number[]): [number, number, number] {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h =
+    max === rn ? ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60
+    : max === gn ? ((bn - rn) / d + 2) * 60
+    : ((rn - gn) / d + 4) * 60;
+  return [h, s, l];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return rgbToHex([f(0) * 255, f(8) * 255, f(4) * 255]);
+}
+
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 // Shadow is the body mixed 12% toward Bao's ink, so any picked colour keeps a warm, matching shade.
 function baoShadow(body: string): string {
   const mix = (from: number, to: number) => Math.round(from * 0.88 + to * 0.12);
-  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const [r, g, b] = rgb(body);
-  const [ir, ig, ib] = rgb(BAO.colInk);
-  return `#${[mix(r, ir), mix(g, ig), mix(b, ib)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  const [r, g, b] = hexToRgb(body);
+  const [ir, ig, ib] = hexToRgb(BAO.colInk);
+  return rgbToHex([mix(r, ir), mix(g, ig), mix(b, ib)]);
 }
 
-function faceForPet(pet: PetId, colourway: ColourwayName, baoColour: string): FaceSpec {
-  return pet === "bao"
-    ? { ...BAO, colBody: baoColour, colShadow: baoShadow(baoColour) }
-    : mochiIn(colourway, MOCHI);
+// Mochi in a picked colour, using mochi-avatar's own colourway rules: shadow 5.5 lightness
+// points down, ink rotated 11.9° and taken dark, blush deepened when the body is warm.
+function mochiInCustom(body: string): FaceSpec {
+  const [h, s, l] = rgbToHsl(hexToRgb(body));
+  const BLUSH_HUE = 5;
+  const blushDistance = Math.abs(((h - BLUSH_HUE + 540) % 360) - 180);
+  const warm = s > 0.1 && blushDistance <= 60;
+  return {
+    ...MOCHI,
+    colBody: body,
+    colShadow: hslToHex(h, s, Math.max(0, l - 0.055)),
+    colInk: hslToHex((h + 11.9) % 360, s, 0.21),
+    colCheek: warm ? "#e44435" : "#ef8f86",
+    colGlint: "#ffffff",
+  };
+}
+
+function faceForPet(
+  pet: PetId,
+  colourway: ColourwayName,
+  baoColour: string,
+  mochiColour: string | null,
+): FaceSpec {
+  if (pet === "bao") return { ...BAO, colBody: baoColour, colShadow: baoShadow(baoColour) };
+  return mochiColour ? mochiInCustom(mochiColour) : mochiIn(colourway, MOCHI);
 }
 
 type MotionName = (typeof MOTIONS)[number];
@@ -366,6 +424,8 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   const [emotion, setEmotion] = useState<Emotion>("happy");
   const [colourway, setColourway] = useState<ColourwayName>("matcha");
   const [baoColour, setBaoColour] = useState(BAO_DEFAULT_COLOUR);
+  // null = one of the preset colourways; otherwise a picked body colour.
+  const [mochiColour, setMochiColour] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [bubbleText, setBubbleText] = useState("");
   const [sayLoading, setSayLoading] = useState(false);
@@ -480,7 +540,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
     if (!ctx) return;
 
     const avatar = new DoughAvatar(ctx, {
-      face: faceForPet(pet, colourway, baoColour),
+      face: faceForPet(pet, colourway, baoColour, mochiColour),
       size: "fit-canvas",
     });
     avatarRef.current = avatar;
@@ -532,8 +592,12 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   }, [emotion]);
 
   useEffect(() => {
-    avatarRef.current?.setFace(faceForPet(pet, colourway, baoColour));
-  }, [pet, colourway, baoColour]);
+    avatarRef.current?.setFace(faceForPet(pet, colourway, baoColour, mochiColour));
+  }, [pet, colourway, baoColour, mochiColour]);
+
+  const bodyColour =
+    pet === "bao" ? baoColour : (mochiColour ?? mochiIn(colourway, MOCHI).colBody);
+  const lightBody = relativeLuminance(bodyColour) > LIGHT_BODY_LUMINANCE;
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const avatar = avatarRef.current;
@@ -699,7 +763,13 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
             <p className="text-muted-foreground">{t.hint}</p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-gradient-to-b from-emerald-50/80 to-background dark:from-emerald-950/30 dark:to-background p-4 sm:p-6">
+          <div
+            className={`rounded-2xl border border-border bg-gradient-to-b p-4 sm:p-6 transition-colors ${
+              lightBody
+                ? "from-stone-300 to-stone-200 dark:from-stone-800/60 dark:to-background"
+                : "from-emerald-50/80 to-background dark:from-emerald-950/30 dark:to-background"
+            }`}
+          >
             <div className="relative mx-auto w-full max-w-md">
               <canvas
                 ref={canvasRef}
@@ -944,18 +1014,41 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
             {pet === "mochi" ? (
               <section className="space-y-2">
                 <h2 className="text-sm font-medium text-muted-foreground">{t.colourway}</h2>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {COLOURWAYS.map((name) => (
                     <Button
                       key={name}
                       type="button"
                       size="sm"
-                      variant={colourway === name ? "default" : "outline"}
-                      onClick={() => setColourway(name)}
+                      variant={!mochiColour && colourway === name ? "default" : "outline"}
+                      onClick={() => {
+                        setColourway(name);
+                        setMochiColour(null);
+                      }}
                     >
+                      <span
+                        aria-hidden
+                        className="h-3 w-3 rounded-full border border-border"
+                        style={{ backgroundColor: mochiIn(name, MOCHI).colBody }}
+                      />
                       {t.colourways[name]}
                     </Button>
                   ))}
+                  <label
+                    className={`inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm shadow-xs ${
+                      mochiColour
+                        ? "border-primary ring-2 ring-primary/30"
+                        : "border-border bg-background hover:bg-accent"
+                    }`}
+                  >
+                    <input
+                      type="color"
+                      value={bodyColour}
+                      onChange={(e) => setMochiColour(e.target.value)}
+                      className="h-4 w-4 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                    />
+                    {t.customColour}
+                  </label>
                 </div>
               </section>
             ) : (
