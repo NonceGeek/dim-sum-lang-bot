@@ -71,7 +71,8 @@ const BAO_COLOURS = [
 
 type BaoColourId = (typeof BAO_COLOURS)[number]["id"];
 
-// Bodies brighter than this (relative luminance, 0..1) vanish on the pale stage, which then darkens.
+// Bodies brighter than this (relative luminance, 0..1) vanish on the pale stage, which then
+// switches to a warm bamboo-steamer tone.
 const LIGHT_BODY_LUMINANCE = 0.85;
 
 const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -766,7 +767,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
           <div
             className={`rounded-2xl border border-border bg-gradient-to-b p-4 sm:p-6 transition-colors ${
               lightBody
-                ? "from-stone-300 to-stone-200 dark:from-stone-800/60 dark:to-background"
+                ? "from-amber-200 to-orange-200 dark:from-amber-950/50 dark:to-background"
                 : "from-emerald-50/80 to-background dark:from-emerald-950/30 dark:to-background"
             }`}
           >
