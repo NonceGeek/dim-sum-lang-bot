@@ -60,8 +60,30 @@ const BAO: FaceSpec = {
   colGlint: "#ffffff",
 };
 
-function faceForPet(pet: PetId, colourway: ColourwayName): FaceSpec {
-  return pet === "bao" ? BAO : mochiIn(colourway, MOCHI);
+const BAO_DEFAULT_COLOUR = "#ffffff";
+
+const BAO_COLOURS = [
+  { id: "white", hex: "#ffffff" },
+  { id: "custard", hex: "#f3e2c7" },
+  { id: "pink", hex: "#f8d7dc" },
+  { id: "matcha", hex: "#d9e8c4" },
+] as const;
+
+type BaoColourId = (typeof BAO_COLOURS)[number]["id"];
+
+// Shadow is the body mixed 12% toward Bao's ink, so any picked colour keeps a warm, matching shade.
+function baoShadow(body: string): string {
+  const mix = (from: number, to: number) => Math.round(from * 0.88 + to * 0.12);
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const [r, g, b] = rgb(body);
+  const [ir, ig, ib] = rgb(BAO.colInk);
+  return `#${[mix(r, ir), mix(g, ig), mix(b, ib)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function faceForPet(pet: PetId, colourway: ColourwayName, baoColour: string): FaceSpec {
+  return pet === "bao"
+    ? { ...BAO, colBody: baoColour, colShadow: baoShadow(baoColour) }
+    : mochiIn(colourway, MOCHI);
 }
 
 type MotionName = (typeof MOTIONS)[number];
@@ -117,6 +139,8 @@ const COPY: Record<
     motions: Record<MotionName, string>;
     steam: string;
     colourways: Record<ColourwayName, string>;
+    baoColours: Record<BaoColourId, string>;
+    customColour: string;
   }
 > = {
   zh: {
@@ -178,6 +202,13 @@ const COPY: Record<
       ramune: "波子汽水",
       budo: "葡萄",
     },
+    baoColours: {
+      white: "白色",
+      custard: "奶黄",
+      pink: "粉红",
+      matcha: "抹茶",
+    },
+    customColour: "自定义",
   },
   en: {
     hint: "Move your pointer to look · click to poke · use the controls below",
@@ -238,6 +269,13 @@ const COPY: Record<
       ramune: "ramune",
       budo: "budo",
     },
+    baoColours: {
+      white: "white",
+      custard: "custard",
+      pink: "pink",
+      matcha: "matcha",
+    },
+    customColour: "custom",
   },
   yue: {
     hint: "郁吓滑鼠等佢望你 · 撳一下戳佢 · 用下面按钮同佢玩",
@@ -298,6 +336,13 @@ const COPY: Record<
       ramune: "波子汽水",
       budo: "提子",
     },
+    baoColours: {
+      white: "白色",
+      custard: "奶黃",
+      pink: "粉紅",
+      matcha: "抹茶",
+    },
+    customColour: "自訂",
   },
 };
 
@@ -320,6 +365,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   const steamTimerRef = useRef<number | null>(null);
   const [emotion, setEmotion] = useState<Emotion>("happy");
   const [colourway, setColourway] = useState<ColourwayName>("matcha");
+  const [baoColour, setBaoColour] = useState(BAO_DEFAULT_COLOUR);
   const [ready, setReady] = useState(false);
   const [bubbleText, setBubbleText] = useState("");
   const [sayLoading, setSayLoading] = useState(false);
@@ -434,7 +480,7 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
     if (!ctx) return;
 
     const avatar = new DoughAvatar(ctx, {
-      face: faceForPet(pet, colourway),
+      face: faceForPet(pet, colourway, baoColour),
       size: "fit-canvas",
     });
     avatarRef.current = avatar;
@@ -486,8 +532,8 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
   }, [emotion]);
 
   useEffect(() => {
-    avatarRef.current?.setFace(faceForPet(pet, colourway));
-  }, [pet, colourway]);
+    avatarRef.current?.setFace(faceForPet(pet, colourway, baoColour));
+  }, [pet, colourway, baoColour]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const avatar = avatarRef.current;
@@ -912,7 +958,44 @@ export function MochiClient({ homepageName, ttsApiUrl }: MochiClientProps) {
                   ))}
                 </div>
               </section>
-            ) : null}
+            ) : (
+              <section className="space-y-2">
+                <h2 className="text-sm font-medium text-muted-foreground">{t.colourway}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  {BAO_COLOURS.map(({ id, hex }) => (
+                    <Button
+                      key={id}
+                      type="button"
+                      size="sm"
+                      variant={baoColour.toLowerCase() === hex ? "default" : "outline"}
+                      onClick={() => setBaoColour(hex)}
+                    >
+                      <span
+                        aria-hidden
+                        className="h-3 w-3 rounded-full border border-border"
+                        style={{ backgroundColor: hex }}
+                      />
+                      {t.baoColours[id]}
+                    </Button>
+                  ))}
+                  <label
+                    className={`inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm shadow-xs ${
+                      BAO_COLOURS.some(({ hex }) => hex === baoColour.toLowerCase())
+                        ? "border-border bg-background hover:bg-accent"
+                        : "border-primary ring-2 ring-primary/30"
+                    }`}
+                  >
+                    <input
+                      type="color"
+                      value={baoColour}
+                      onChange={(e) => setBaoColour(e.target.value)}
+                      className="h-4 w-4 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                    />
+                    {t.customColour}
+                  </label>
+                </div>
+              </section>
+            )}
           </div>
 
           <p className="text-xs text-muted-foreground text-center">
