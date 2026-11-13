@@ -22,6 +22,7 @@ export default function ChatCantPage() {
       historyStorageKey={CANT_HISTORY_KEY}
       tagCsvUrl={CANT_TAG_CSV_URL}
       ttsApiUrl={config.chatApiUrl.replace(/\/[^/]*$/, "/tts_cantonese")}
+      zhihuSearchApiUrl={config.chatApiUrl.replace(/\/[^/]*$/, "/zhihu-search")}
       chatTitle={`${config.homepageName} 随便倾偈`}
     />
   );

@@ -23,6 +23,7 @@ export default function ChatPage() {
 
       searchMode={config.searchMode}
       prompt1={DEF_PROMPT_0}
+      zhihuSearchApiUrl={config.chatApiUrl.replace(/\/[^/]*$/, "/zhihu-search")}
       chatTitle={`${config.homepageName} 🇱🇦`}
     />
   );

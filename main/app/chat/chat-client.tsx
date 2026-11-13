@@ -581,6 +581,11 @@ export function ChatClient({
           const categoryNicknames = categoryNicknamesRef.current;
           const zhihuKeyword = extractSearchKeyword(currentQuestion);
           const dimsumKeyword = extractDimsumKeyword(currentQuestion);
+          // DO NOT REMOVE THIS CONSOLE.LOG
+          console.log("web-search keywords", {
+            zhihu: zhihuSearchApiUrl ? zhihuKeyword : "(zhihu off)",
+            dimsum: additionalSourceUrl ? dimsumKeyword : "(dimsum off)",
+          });
           if (zhihuKeyword || dimsumKeyword) {
             const [zhihuItems, dimsumItems] = await Promise.all([
               zhihuSearchApiUrl && zhihuKeyword
